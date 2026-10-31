@@ -107,3 +107,22 @@ input{font:inherit;color:var(--ink)}
 .qt{font-size:12px;color:var(--ink2)}.qv{font-size:24px;font-weight:750;margin:3px 0}.qv small{font-size:12px;color:var(--mute);font-weight:400}.qd{font-size:12px;color:var(--mute)}
 .fr{display:block;width:100%;text-align:left;padding:10px 0;border-bottom:1px solid var(--line);min-height:46px}.fr:last-child{border:0}.fr b{display:block;font-size:14.5px;font-weight:600}.fr small{color:var(--mute);font-size:11.5px}
 input[type=search]{-webkit-appearance:none;appearance:none}
+/* v117: tìm kiếm + bảng kiểu Excel */
+.fbar{display:flex;gap:8px}.fbar .inp{flex:1;min-width:0}.fgo{flex:0 0 auto;min-width:64px;border-radius:12px;background:var(--acc);color:var(--accInk);font-weight:700;font-size:15px}
+.achips{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px}.ach{font-size:12px;padding:5px 9px;border-radius:14px;background:var(--card);border:1px solid var(--line2);color:var(--ink2);min-height:30px;display:inline-flex;align-items:center}
+.ach.src{color:var(--acc);border-color:rgba(34,211,238,.4)}.ach.per{color:var(--ink);border-color:var(--acc)}.ach.x{color:var(--ink)}
+.ins details{margin-top:6px}.ins summary{color:var(--acc);cursor:pointer}
+.xbar{margin:4px 0 10px}.xbtn{font-size:12.5px;color:var(--acc);border:1px solid rgba(34,211,238,.45);border-radius:9px;padding:5px 10px;min-height:32px;font-weight:600}
+.xgw{margin:0 -12px}.xgi{font-size:11.5px;color:var(--mute);padding:0 12px 6px}.lnk{color:var(--acc);font-size:11.5px;text-decoration:underline}
+.xgs{overflow:auto;max-height:68vh;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.xg{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:100%;font-variant-numeric:tabular-nums}
+.xg th{position:sticky;top:0;z-index:2;background:#0f1c33;color:var(--ink2);font-weight:600;text-align:left;white-space:nowrap;border-bottom:1px solid var(--line2);padding:0}
+.xg th button{padding:8px 4px 8px 10px;font-size:12px;color:inherit;font-weight:600;min-height:36px}.xg th .xf{padding:8px 8px 8px 2px;color:var(--mute)}.xg th .xf.on{color:var(--acc)}
+.xg th.n{text-align:right}.xg td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}.xg td.n{text-align:right}
+.xg tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+.xg .st{position:sticky;left:0;z-index:1;background:var(--card);box-shadow:1px 0 0 var(--line2)}.xg th.st{z-index:3;background:#0f1c33}
+.xg tr.tot td{font-weight:700;color:var(--ink);background:#0f1c33;position:sticky;bottom:0}
+.gbc{color:var(--gb)}
+.xfo{display:grid;grid-template-columns:24px 1fr auto;gap:8px;align-items:center;min-height:44px;border-bottom:1px solid var(--line);font-size:14px}.xfo input{width:20px;height:20px;accent-color:var(--acc)}.xfo small{color:var(--mute)}
+.sb{display:flex;align-items:flex-end;gap:4px;height:170px;padding-top:6px}.sbc{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;min-width:0}
+.sbs{width:100%;max-width:26px;display:flex;flex-direction:column;border-radius:4px 4px 1px 1px;overflow:hidden;min-height:2px}.sbs i{display:block;min-height:1px}.sbc span{font-size:10px;color:var(--mute)}

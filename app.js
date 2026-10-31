@@ -2,13 +2,13 @@
    Số liệu chỉ đến từ gói .dgvp do nút "Phone Data" trên máy tính tạo (gửi qua Phone Link), mã hoá AES-256-GCM.
    App KHÔNG có kết nối mạng nào (CSP connect-src 'none'); gói lưu trên iPhone ở dạng còn mã hoá. */
 'use strict';
-const APPV = '116.1';
+const APPV = '117';
 const PHFMT = 1, PHITER = 600000;
 function phUnpack(u8) {
   const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), ml = dv.getUint32(0, true);
   const meta = JSON.parse(new TextDecoder().decode(u8.subarray(8, 8 + ml))), head = 8 + ml, base = head + (8 - head % 8) % 8;
   const buf = u8.buffer.slice(u8.byteOffset + base, u8.byteOffset + u8.byteLength);
-  const T = { u8: Uint8Array, u16: Uint16Array, u32: Uint32Array, f64: Float64Array };
+  const T = { u8: Uint8Array, u16: Uint16Array, u32: Uint32Array, i32: Int32Array, f64: Float64Array };
   const walk = v => { if (Array.isArray(v)) return v.map(walk); if (v && typeof v == 'object') { if (v.$b !== undefined && T[v.t]) return new T[v.t](buf, v.$b, v.n); const o = {}; for (const k in v) o[k] = walk(v[k]); return o } return v };
   return walk(meta) }
 
@@ -79,7 +79,7 @@ function prepImp(C) {
   for (let i = 0; i < C.n; i++) { const j = C.col.ym[i], y = C.ymY[j], m = C.ymM[j]; if (!y) continue; const a = C.has[y] = C.has[y] || new Uint8Array(13); a[m] = 1 }
   C.years = Object.keys(C.has).map(Number).sort((a, b) => b - a);
   C.maxM = {}; for (const y of C.years) { let mx = 0; for (let m = 1; m <= 12; m++) if (C.has[y][m]) mx = m; C.maxM[y] = mx }
-  C.dims = ['brand', 'importer', 'segment', 'band', 'sub', 'gpu', 'cpum'].filter(k => C.col[k] && C.dict[k] && C.dict[k].some(v => !blank(v)));
+  C.dims = ['brand', 'importer', 'segment', 'band', 'sub', 'gpu', 'cpum', 'ram', 'ssd', 'disp', 'res', 'hz'].filter(k => C.col[k] && C.dict[k] && C.dict[k].some(v => !blank(v)));
   C.gb = new Uint8Array(C.dict.brand.length); C.dict.brand.forEach((b, i) => C.gb[i] = isGB(b) ? 1 : 0) }
 /* một lượt quét: tổng kỳ + theo từng chiều + theo tháng của cả năm (f.br = chỉ số hãng, -1 = mọi hãng) */
 function agg(C, f) { const met = f.met == 'u' ? C.usd : C.qty, o = { v: 0, q: 0, u: 0, g: 0, mv: new Float64Array(13), mg: new Float64Array(13), by: {} };
@@ -166,7 +166,8 @@ function pageImp() { const d = S.d; if (!d.imp || !d.imp.length) return shell('N
   h += trendCard(C, P, a, b, 'Theo tháng · ' + P.y, Array.from(a.mv, (v, m) => v ? a.mg[m] / v : NaN), 'Thị phần GIGABYTE');
   h += brandCard(C, P, a, b, 10);
   const ttl = { importer: 'Nhà nhập khẩu', segment: 'Phân khúc', band: 'Khoảng giá', sub: 'Dòng máy', gpu: 'GPU', cpum: 'CPU' };
-  for (const k of ['importer', 'segment', 'band']) if (C.dims.includes(k) && !(k == 'segment' && P.seg >= 0)) h += barCard(C, P, a, k, ttl[k], 8);
+  Object.assign(ttl, { ctier: 'Bậc CPU', ram: 'RAM', ssd: 'SSD', disp: 'Màn hình', res: 'Độ phân giải', hz: 'Tần số quét' });
+  for (const k of ['importer', 'segment', 'band', 'ctier', 'gpu', 'ram', 'disp']) if (C.dims.includes(k) && !(k == 'segment' && P.seg >= 0)) h += barCard(C, P, a, k, ttl[k], 8);
   return shell('Nhập khẩu', subLine(), h) }
 const gbSum = (C, by) => { let s = 0; for (let i = 0; i < by.length; i++) if (C.gb[i]) s += by[i]; return s };
 function insight(C, P, a, b, rk, sh, sh0) { const L = [];
@@ -201,7 +202,8 @@ function brandSheet(i) { const C = curC(), P = S.imp, nm = C.dict.brand[i], col 
   <div class="k"><div class="l">${P.met == 'u' ? 'Số lượng' : 'Giá trị'}</div><div class="v num">${P.met == 'u' ? fQ(a.q) : fU(a.u)}</div><div class="d">${b ? fG(P.met == 'u' ? a.q : a.u, P.met == 'u' ? b.q : b.u) + ' cùng kỳ' : ''}</div></div></div>`;
   h += trendCard(C, P, a2, b, 'Theo tháng · ' + P.y, Array.from(a.mv, (v, m) => all.mv[m] ? v / all.mv[m] : NaN), 'thị phần ' + esc(nm));
   const ttl = { sub: 'Dòng máy', segment: 'Phân khúc', importer: 'Nhà nhập khẩu', band: 'Khoảng giá', cpum: 'CPU', gpu: 'GPU' };
-  for (const k of ['sub', 'segment', 'importer', 'band', 'cpum', 'gpu']) if (C.dims.includes(k) && !(k == 'segment' && P.seg >= 0)) h += barCard(C, P, a, k, ttl[k], 8, col);
+  Object.assign(ttl, { ctier: 'Bậc CPU', ram: 'RAM', ssd: 'SSD', disp: 'Màn hình', res: 'Độ phân giải', hz: 'Tần số quét' });
+  for (const k of ['sub', 'segment', 'importer', 'band', 'ctier', 'cpum', 'gpu', 'ram', 'ssd', 'disp', 'res', 'hz']) if (C.dims.includes(k) && !(k == 'segment' && P.seg >= 0)) h += barCard(C, P, a, k, ttl[k], 8, col);
   openSheet(h, true) }
 
 /* Cài đặt */
@@ -216,6 +218,9 @@ function pageSet() { const d = S.d, h = d.head || {}, sz = S.pkg ? S.pkg.length 
   <button class="btn b3" data-a="wipe">Xoá dữ liệu khỏi iPhone</button>
   <p class="asof" style="text-align:center;margin-top:16px">DGV-GBT Mobile · bản ${APPV} · không kết nối Internet</p>`) }
 
+/* bậc CPU (tính trên máy tính theo sheet "Bậc CPU") thành một chiều phân tích như các cột khác */
+function addTier(C) { if (!C.tier || !C.col.cpum) return; const td = [], ix = new Map(), map = C.tier.map(t => { t = t || 'Khác/không rõ'; let i = ix.get(t); if (i === undefined) { i = td.length; td.push(t); ix.set(t, i) } return i });
+  const col = new Uint8Array(C.n); for (let i = 0; i < C.n; i++) col[i] = map[C.col.cpum[i]]; C.dict.ctier = td; C.col.ctier = col; if (!C.dims.includes('ctier')) C.dims.push('ctier') }
 /* ================= v116: BÁN HÀNG ================= */
 /* số bán ra: tính theo đúng định nghĩa sheet "Chỉ số" của máy tính (loại dòng được tính), không tính dòng nội bộ */
 function prepSales(Sl) { const T = Sl.dict, C = Sl.col, n = Sl.n; Sl.yv = new Int16Array(n); Sl.mo = new Int8Array(n);
@@ -315,7 +320,7 @@ function pageCmp() { const d = S.d; if (!d.imp || !d.imp.length) return shell('S
   const sh = P.view == 'sh', ser = B.map(x => ({ c: x.c, me: x.me, v: Array.from(x.a.mv, (v, m) => sh ? (all.mv[m] ? v / all.mv[m] * 100 : NaN) : v) }));
   h += `<div class="cd"><h3>${sh ? 'Thị phần theo tháng (%)' : (P.met == 'u' ? 'Giá trị' : 'Số lượng') + ' theo tháng'} · ${P.y}</h3>${lineChart(ser, ms, sh ? v => vnN(v, 1) + '%' : v => P.met == 'u' ? fU(v) : fQ(v), on)}
   <div class="leg">${B.map(x => `<span><i style="background:${x.c}"></i>${esc(x.nm)}</span>`).join('')}</div></div>`;
-  for (const [k, t] of [['segment', 'Cơ cấu phân khúc'], ['band', 'Cơ cấu khoảng giá'], ['importer', 'Nhà nhập khẩu chính']]) if (C.dims.includes(k)) h += mixCard(C, B, k, t);
+  for (const [k, t] of [['segment', 'Cơ cấu phân khúc'], ['band', 'Cơ cấu khoảng giá'], ['ctier', 'Cơ cấu bậc CPU'], ['cpum', 'CPU model chính'], ['gpu', 'Cơ cấu GPU'], ['ram', 'Cơ cấu RAM'], ['ssd', 'Cơ cấu SSD'], ['disp', 'Cơ cấu màn hình'], ['hz', 'Tần số quét'], ['importer', 'Nhà nhập khẩu chính']]) if (C.dims.includes(k)) h += mixCard(C, B, k, t);
   return shell('So sánh', subLine(), h) }
 /* thanh 100% cho từng hãng theo một chiều (phân khúc / khoảng giá …): 5 nhóm lớn nhất của cả nhóm hãng đang so + Khác */
 function mixCard(C, B, k, t) { const tot = new Float64Array(C.dict[k].length); for (const x of B) x.a.by[k].forEach((v, i) => tot[i] += v); const keys = topL(C, tot, k, 5).map(z => z[0]); if (!keys.length) return '';
@@ -359,11 +364,140 @@ function findList(t) { const n = noMark(t).trim(); if (n.length < 2) return ''; 
   const I = X.imp.filter(hit).slice(0, 12), L = X.sl.filter(hit).slice(0, 12); if (!I.length && !L.length) return quick(t) ? '' : '<div class="empty">Không thấy kết quả</div>';
   const cl = c => (S.d.imp.find(x => x.k == c) || {}).label || c;
   return `<div class="cd">${I.map(e => `<button class="fr" data-a="fimp" data-v="${e.c}|${e.k}|${e.i}"><b>${esc(e.v)}</b><small>${KL[e.k]} · ${esc(cl(e.c))}</small></button>`).join('')}${L.map(e => `<button class="fr" data-a="fsl" data-v="${e.k}:${e.i}"><b>${esc(e.v)}</b><small>${KL[e.k]}${e.sub ? ' · ' + esc(e.sub) : ''}</small></button>`).join('')}</div>` }
-function pageFind() { return shell('Tìm & Hỏi', subLine(), `<input class="inp" id="fq" type="search" enterkeyhint="search" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="VD: nhập khẩu ssd gigabyte 2026" value="${esc(S.q || '')}">
-  <div id="fres" style="margin-top:10px">${findBody(S.q || '')}</div>`) }
-function findBody(t) { if (!t.trim()) return `<div class="cd"><h3>Gợi ý</h3>${['nhập khẩu laptop gigabyte 2026', 'màn hình dell quý 3', 'doanh số gigabyte tháng 9', 'ssd 2025'].map(x => `<button class="fr" data-a="fsug" data-v="${esc(x)}"><b>${esc(x)}</b></button>`).join('')}</div><div class="asof" style="text-align:center">Tìm hãng, dòng máy, nhà nhập khẩu, đại lý, sale, mã hàng – hoặc hỏi kèm nhóm hàng và thời gian</div>`;
-  const q = quick(t); return (q ? `<div class="qs">${q}</div>` : '') + findList(t) }
-document.addEventListener('input', e => { if (e.target.id != 'fq') return; S.q = e.target.value; clearTimeout(S.fqT); S.fqT = setTimeout(() => { const r = $('#fres'); if (r) r.innerHTML = findBody(S.q) }, 120) });
+/* ================= v117: TÌM KIẾM = BỘ HIỂU CÂU CỦA MÁY TÍNH + BẢNG KIỂU EXCEL ================= */
+function pageFind() { return shell('Tìm & Hỏi', subLine(), `<form id="ff" class="fbar" action="#"><input class="inp" id="fq" type="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="VD: laptop 4050 · pc dgx spark · nhập khẩu ssd gigabyte 2026" value="${esc(S.q || '')}"><button class="fgo" data-a="frun" aria-label="Tìm">Tìm</button></form>
+  <div id="fres" style="margin-top:10px">${S.res && S.res.text == (S.q || '') ? resHtml() : findBody(S.q || '')}</div>`) }
+function findBody(t) { if (!t.trim()) { const H = (S.hist || []).slice(0, 6); return (H.length ? `<div class="cd"><h3>Tìm gần đây</h3>${H.map(x => `<button class="fr" data-a="fsug" data-v="${esc(x)}"><b>${esc(x)}</b></button>`).join('')}</div>` : '') +
+    `<div class="cd"><h3>Ví dụ</h3>${['laptop 4050', 'danh sách laptop rtx 5060', 'nhập khẩu ssd gigabyte 2026', 'màn hình dell quý 3', 'doanh số gigabyte tháng 9'].map(x => `<button class="fr" data-a="fsug" data-v="${esc(x)}"><b>${esc(x)}</b></button>`).join('')}</div>
+    <div class="asof" style="text-align:center">Gõ như ô tìm kiếm trên máy tính rồi bấm <b>Tìm</b> – cùng bộ hiểu câu, cùng con số, cùng bảng Model</div>` }
+  return `<button class="qa" data-a="frun"><div class="qt">Bấm để tìm đầy đủ (giống máy tính)</div><div class="qv" style="font-size:18px">🔎 ${esc(t)}</div></button>` + findList(t) }
+document.addEventListener('input', e => { if (e.target.id != 'fq') return; S.q = e.target.value; clearTimeout(S.fqT); S.fqT = setTimeout(() => { const r = $('#fres'); if (r && !(S.res && S.res.text == S.q)) r.innerHTML = findBody(S.q) }, 150) });
+document.addEventListener('submit', e => { if (e.target.id == 'ff') { e.preventDefault(); frun() } });
+async function frun(text) { clearTimeout(S.fqT); const t = String(text != null ? text : ($('#fq') ? $('#fq').value : S.q) || '').trim(); if (!t) return; S.q = t; try { document.activeElement && document.activeElement.blur() } catch (e) { }
+  const r = $('#fres'); if (r) r.innerHTML = '<div class="empty">Đang tìm…</div>';
+  try { const A = await ENG.engRun(t, true); S.res = { text: t, ask: A }; S.hist = [t].concat((S.hist || []).filter(x => x != t)).slice(0, 12); try { localStorage.setItem('dgvm_hist', JSON.stringify(S.hist)) } catch (e) { } }
+  catch (e) { console.warn(e); S.res = { text: t, err: String(e && e.message || e) } }
+  if (S.tab != 'find') { S.tab = 'find'; render() } else { const x = $('#fres'); if (x) x.innerHTML = resHtml(); window.scrollTo(0, 0) } }
+function recompute() { const A = ENG.engCompute(S.res.ask.Q); S.res.ask = A; const x = $('#fres'); if (x) x.innerHTML = resHtml() }
+
+/* ---------- bảng kiểu Excel: cố định tiêu đề + cột đầu, chạm tiêu đề để sắp xếp, ▾ để lọc giá trị, dòng tổng ---------- */
+const GR = {};
+function xg(id, cols, rows, o) { o = o || {}; const g = GR[id] || (GR[id] = { sort: null, flt: {}, lim: 200 }); g.cols = cols; g.rows = rows; g.o = o; return `<div class="xgw" id="xgw-${id}">${xgBody(id)}</div>` }
+function xgRows(id) { const g = GR[id]; let R = g.rows; for (const ci in g.flt) { const s = g.flt[ci], c = g.cols[ci]; if (s) R = R.filter(r => { const v = c.fv ? c.fv(r) : c.v(r); return Array.isArray(v) ? v.some(x => s.has(String(x))) : s.has(String(v)) }) }
+  if (g.o.derive) R = g.o.derive(R, g); if (g.sort) { const [ci, dir] = g.sort, c = g.cols[ci]; R = R.slice().sort((a, b) => { const x = c.v(a), y = c.v(b); return (typeof x == 'number' && typeof y == 'number' ? x - y : String(x).localeCompare(String(y), 'vi', { numeric: true })) * dir }) } return R }
+function xgBody(id) { const g = GR[id], C = g.cols, R = xgRows(id), N = R.slice(0, g.lim); g.view = R;
+  const st = i => i == 0 && !g.o.nost ? ' st' : ''; const th = C.map((c, i) => `<th class="${c.n ? 'n' : ''}${st(i)}"><button data-a="xsort" data-v="${id}:${i}">${esc(c.t)}${g.sort && g.sort[0] == i ? (g.sort[1] > 0 ? ' ▲' : ' ▼') : ''}</button>${c.nf ? '' : `<button class="xf ${g.flt[i] ? 'on' : ''}" data-a="xflt" data-v="${id}:${i}">▾</button>`}</th>`).join('');
+  const td = r => C.map((c, i) => { const v = c.v(r); return `<td class="${c.n ? 'n' : ''}${st(i)}${c.cls ? ' ' + c.cls(r) : ''}">${c.h ? c.h(r) : esc(v)}</td>` }).join('');
+  const tot = C.some(c => c.sum) ? `<tr class="tot">${C.map((c, i) => `<td class="${c.n ? 'n' : ''}${st(i)}">${i == 0 ? 'Tổng' : c.sum ? c.sum(R) : ''}</td>`).join('')}</tr>` : '';
+  return `<div class="xgi">${R.length.toLocaleString('vi-VN')} dòng${Object.keys(g.flt).some(k => g.flt[k]) ? ' · đang lọc <button class="lnk" data-a="xclr" data-v="${id}">bỏ lọc</button>' : ''}</div><div class="xgs"><table class="xg"><thead><tr>${th}</tr></thead><tbody>${N.map(r => `<tr>${td(r)}</tr>`).join('')}${tot}</tbody></table></div>${R.length > g.lim ? `<button class="more" data-a="xmore" data-v="${id}">Xem thêm (${(R.length - g.lim).toLocaleString('vi-VN')} dòng)</button>` : ''}` }
+function xgRe(id) { const e = $('#xgw-' + id); if (e) e.innerHTML = xgBody(id) }
+function xgFltSheet(id, ci) { const g = GR[id], c = g.cols[ci], cnt = new Map(); const base = g.rows.filter(r => { for (const k in g.flt) { if (+k == ci || !g.flt[k]) continue; const cc = g.cols[k], v = cc.fv ? cc.fv(r) : cc.v(r); if (!(Array.isArray(v) ? v.some(x => g.flt[k].has(String(x))) : g.flt[k].has(String(v)))) return false } return true });
+  for (const r of base) { const v = c.fv ? c.fv(r) : c.v(r); for (const x of Array.isArray(v) ? v : [v]) cnt.set(String(x), (cnt.get(String(x)) || 0) + 1) }
+  const L = [...cnt.entries()].sort((a, b) => c.fs ? c.fs(a[0], b[0]) : String(a[0]).localeCompare(String(b[0]), 'vi', { numeric: true })); const sel = g.flt[ci];
+  S.xf = { id, ci, sel: new Set(sel || L.map(x => x[0])), all: L.map(x => x[0]) };
+  openSheet(`<h2>Lọc cột ${esc(c.t)}</h2><input class="inp" id="xfq" placeholder="Tìm giá trị…" autocomplete="off" style="margin-bottom:8px">
+   <div class="seg" style="margin-bottom:6px"><button data-a="xfall" data-v="1">Chọn hết</button><button data-a="xfall" data-v="0">Bỏ hết</button></div>
+   <div id="xfl">${L.map(([v, n]) => `<label class="xfo" data-v="${esc(v)}"><input type="checkbox" ${S.xf.sel.has(v) ? 'checked' : ''} data-x="${esc(v)}"><span>${esc(c.fl ? c.fl(v) : v || '(trống)')}</span><small>${n}</small></label>`).join('')}</div>
+   <div style="height:10px"></div><button class="btn b1" data-a="xfok">Áp dụng</button>`) }
+document.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.x != null && S.xf) { const v = e.target.dataset.x; if (e.target.checked) S.xf.sel.add(v); else S.xf.sel.delete(v) } });
+document.addEventListener('input', e => { if (e.target.id != 'xfq') return; const q = noMark(e.target.value); document.querySelectorAll('#xfl .xfo').forEach(l => l.style.display = !q || noMark(l.dataset.v).includes(q) ? '' : 'none') });
+
+/* ---------- trang kết quả ---------- */
+const nf = v => Math.round(v || 0).toLocaleString('vi-VN'), uf = v => '$' + nf(v);
+function resHtml() { const R = S.res; if (!R) return ''; if (R.err) return `<div class="empty">Không hiểu được câu này (${esc(R.err)})</div>`; const A = R.ask; if (!A || !A.Q) return '<div class="empty">Không hiểu được câu này</div>';
+  const Q = A.Q, P = A.P; let h = chipsHtml(Q, P); if (!P || !A.A) return h + `<div class="empty">${Q.src == 'imp' ? 'Gói chưa có số nhập khẩu của nhóm này' : 'Gói chưa có số bán ra'}</div>`;
+  return h + (Q.src == 'imp' ? resImp(Q, P, A.A) : resSales(Q, P, A.A)) }
+const FNM = { gpu: 'VGA ', cpuf: 'CPU ', ram: 'RAM ', ssd: 'SSD ', importer: 'Đầu mối ', dealer: 'Đại lý ', chain: 'Chuỗi ', sale: 'Sale ' };
+function chipsHtml(Q, P) { const c = [`<span class="ach src">${Q.src == 'imp' ? 'Số nhập khẩu' : 'Số bán DGW'}</span>`, `<span class="ach">${esc(ENG.catName(Q.cat) || 'Mọi nhóm')}</span>`];
+  if (Q.focus == 'list') c.push('<span class="ach src">Danh sách sản phẩm</span>');
+  for (const [k, vs] of Object.entries(Q.f)) { if (k == 'pmin' || k == 'pmax') { c.push(`<button class="ach x" data-a="fdrop" data-v="${k}|">${k == 'pmin' ? '> ' : '< '}${esc(vs[0])} ✕</button>`); continue }
+    for (const v of vs) c.push(`<button class="ach x" data-a="fdrop" data-v="${esc(k)}|${esc(String(v))}">${esc((FNM[k] || '') + (k == 'q' ? '“' + v + '”' : k == 'dealer' ? ((ENG.D.dl[v] || {}).name || v) : v))} ✕</button>`) }
+  if (P) c.push(`<button class="ach per" data-a="fper">${esc(P.lab)}${P.cf ? ' · so cùng kỳ' : ''} ▾</button>`);
+  const g = (Q.guess || []).length ? `<div class="asof" style="margin:4px 0">${Q.guess.map(esc).join(' · ')}</div>` : '';
+  const alt = (Q.alt || []).length ? `<div class="chips">${Q.alt.map(c => `<button class="chip" data-a="fcat" data-v="${esc(c)}">${esc(ENG.catName(c))}</button>`).join('')}</div>` : '';
+  return `<div class="achips">${c.join('')}</div>${g}${alt}` }
+function kpi(l, v, cur, prev, sub, cls) { const has = isFinite(prev) && prev > 0; return `<div class="k ${cls || ''}"><div class="l">${l}</div><div class="v num">${v}</div><div class="d">${has ? fG(cur, prev) + ' ' : ''}${sub || ''}</div></div>` }
+function resImp(Q, P, A) { const E = ENG; if (!A.rows) return '<div class="empty">Không có lô nhập nào khớp đủ các điều kiện trong kỳ này. Bỏ bớt điều kiện (✕) hoặc đổi kỳ.</div>';
+  const asp = A.qty ? A.usd / A.qty : 0, aspP = A.qP ? A.uP / A.qP : 0, CF = !!(P.cf && A.qP), M = A.mkt, TQ = M ? M.q : A.qty, TQP = M ? M.qP : A.qP, mrk = M ? [...M.brand.entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]) : null;
+  const brands = [...A.brand.entries()].map(([b, o]) => { const p = A.brandP.get(b) || { q: 0, u: 0 }; const sh = o.q / TQ, shP = TQP ? p.q / TQP : NaN; return { b, q: o.q, u: o.u, asp: o.q ? o.u / o.q : 0, sh, shP, dsh: sh - shP, qP: p.q } }).sort((a, b) => b.q - a.q); brands.forEach((x, i) => x.rk = mrk ? mrk.indexOf(x.b) + 1 : i + 1);
+  let ins = []; try { ins = E.askInsImp(Q, P, A, brands, asp, aspP) || [] } catch (e) { }
+  const months = []; for (let m = P.from; m <= P.to; m = E.ymAdd(m, 1)) months.push(m);
+  const G = brands.find(x => E.isG(x.b)), nAll = M ? M.brand.size : A.brand.size;
+  let h = `<div class="kp">${kpi('Sản lượng nhập', nf(A.qty), A.qty, CF ? A.qP : NaN, CF ? 'cùng kỳ ' + nf(A.qP) : '')}${kpi('Giá trị nhập', E.fusd(A.usd), A.usd, CF ? A.uP : NaN, '')}
+   ${kpi('Giá nhập TB', uf(asp), asp, CF ? aspP : NaN, CF && aspP ? 'cùng kỳ ' + uf(aspP) : '')}<div class="k gb"><div class="l">GIGABYTE · share</div><div class="v num">${G ? E.fpc(G.sh) : '–'}</div><div class="d">${G ? 'Hạng #' + G.rk + '/' + nAll + (CF && isFinite(G.dsh) ? ' ' + fPts(G.dsh) : '') : 'chưa có lô nhập'}</div></div></div>`;
+  if (ins.length) h += `<div class="ins">${ins.slice(0, 3).join('<br>')}${ins.length > 3 ? `<details><summary>+${ins.length - 3} ý</summary>${ins.slice(3).join('<br>')}</details>` : ''}</div>`;
+  /* bảng Model: mỗi dòng = 1 cấu hình × 1 tháng, cột đúng thứ tự sheet Data (như máy tính) */
+  const LST = []; if (A.list) for (const r of A.list.values()) for (const [ym, m] of r.mq) { if (!m.q && !m.u) continue; LST.push(Object.assign({}, r, { q: m.q, u: m.u, mn: m.mn, mx: m.mx, imp: m.imp, f: ym, l: ym, mq: new Map([[ym, m]]) })) }
+  LST.sort((a, b) => (a.f < b.f ? 1 : a.f > b.f ? -1 : 0) || b.q - a.q); LST.forEach((r, k) => r.rk = k + 1); window.LASTLIST = LST;
+  const d0 = E.IMPDET[Q.cat], O = E.listOrder(d0), has = k => LST.some(r => r.v[k] && r.v[k] != '-');
+  const colOf = o => o.k == 'ym' ? { t: o.t, k: o.k, v: r => r.f, fl: v => 'T' + (+v.slice(5, 7)) + '/' + v.slice(2, 4), h: r => 'T' + (+r.f.slice(5, 7)) }
+    : o.k == 'q' ? { t: o.t, k: o.k, n: 1, nf: 1, v: r => r.q, h: r => `<b>${nf(r.q)}</b>`, sum: R => nf(R.reduce((s, r) => s + r.q, 0)) }
+    : o.k == 'u' ? { t: o.t, k: o.k, n: 1, nf: 1, v: r => Math.round(r.u), h: r => uf(r.u), sum: R => uf(R.reduce((s, r) => s + r.u, 0)) }
+    : o.k == 'avg' ? { t: o.t, k: o.k, n: 1, nf: 1, v: r => r.q ? Math.round(r.u / r.q) : 0, h: r => uf(r.q ? r.u / r.q : 0), sum: R => { const q = R.reduce((s, r) => s + r.q, 0), u = R.reduce((s, r) => s + r.u, 0); return q ? uf(u / q) : '' } }
+    : o.k == 'importer' ? { t: o.t, k: o.k, v: r => E.topMap(r.imp, 1)[0] || '' }
+    : o.k == 'brand' ? { t: o.t, k: o.k, v: r => r.v.brand, h: r => E.isG(r.v.brand) ? `<b class="gbc">${esc(r.v.brand)}</b>` : `<b>${esc(r.v.brand)}</b>` }
+    : { t: o.t, k: o.k, v: r => r.v[o.k] || '' };
+  const cols = [{ t: 'Year', k: 'yr', v: r => r.f.slice(0, 4) }].concat(O.filter(o => E.LIST_NUM.has(o.k) || has(o.k)).map(colOf)); S.res.listCols = cols;
+  const blkModel = `<div class="cd" id="res-model"><h3>Model / cấu hình chi tiết<span class="sp"></span><button class="xbtn" data-a="fxl">⇪ Excel</button></h3>${xg('m', cols, LST, { nost: 1 })}</div>`;
+  /* Nhãn hàng + theo quý */
+  const qOf = m => m.slice(0, 4) + ' Q' + Math.ceil(+m.slice(5) / 3), QS0 = [...new Set(months.map(qOf))], QS = QS0.filter(k => months.some(m => qOf(m) == k && A.month.get(m))).slice(-8);
+  const qQty = (b, k) => { let t = 0; months.forEach(m => { if (qOf(m) == k) { const o = A.month.get(m); if (o && o.get(b)) t += o.get(b).q } }); return t };
+  const bcols = [{ t: 'Nhãn hàng', v: r => r.b, h: r => E.isG(r.b) ? `<b class="gbc">${esc(r.b)}</b>` : `<b>${esc(r.b)}</b>` }, { t: '#', n: 1, nf: 1, v: r => r.rk }, { t: 'Số lượng', n: 1, nf: 1, v: r => r.q, h: r => nf(r.q), sum: R => nf(R.reduce((s, r) => s + r.q, 0)) }, { t: 'Share', n: 1, nf: 1, v: r => r.sh, h: r => E.fpc(r.sh) }]
+    .concat(CF ? [{ t: 'Tăng/giảm', n: 1, nf: 1, v: r => r.qP ? r.q / r.qP : 1e9, h: r => `<span class="${!r.qP || r.q >= r.qP ? 'up' : 'dn'}">${E.fgrow(r.q, r.qP)}</span>` }, { t: 'Δ share', n: 1, nf: 1, v: r => isFinite(r.dsh) ? r.dsh : -9, h: r => isFinite(r.dsh) ? fPts(r.dsh) : '' }] : [])
+    .concat([{ t: 'Giá trị', n: 1, nf: 1, v: r => r.u, h: r => E.fusd(r.u), sum: R => E.fusd(R.reduce((s, r) => s + r.u, 0)) }, { t: 'Giá TB', n: 1, nf: 1, v: r => r.asp, h: r => uf(r.asp) }])
+    .concat(QS.length > 1 ? QS.map(k => ({ t: 'Q' + k.slice(-1) + '/' + k.slice(2, 4), n: 1, nf: 1, v: r => qQty(r.b, k), h: r => { const v = qQty(r.b, k); return v ? nf(v) : '·' } })) : []);
+  const blkBrand = `<div class="cd"><h3>Nhãn hàng<span class="sp"></span><small>${esc(P.lab)}</small></h3>${xg('b', bcols, brands)}</div>`;
+  /* theo tháng: cột chồng top 6 + đường thị phần top 5 */
+  const topB = brands.slice(0, 6).map(x => x.b), mv = months.map(m => { const o = A.month.get(m); let t = 0; if (o) o.forEach(v => t += v.q); return t }), mx = Math.max(1, ...mv);
+  const bars = months.map((m, k) => { const o = A.month.get(m) || new Map(); let rest = mv[k]; const seg = topB.map(b => { const v = o.get(b) ? o.get(b).q : 0; rest -= v; return [v, bCol(b)] }); seg.push([Math.max(0, rest), '#33465f']);
+    return `<div class="sbc"><div class="sbs" style="height:${mv[k] / mx * 100}%">${seg.reverse().map(([v, c]) => v > 0 ? `<i style="flex:${v};background:${c}"></i>` : '').join('')}</div><span>${'T' + (+m.slice(5))}</span></div>` }).join('');
+  const ser = brands.slice(0, 5).map(x => ({ c: bCol(x.b), me: E.isG(x.b), v: [null].concat(months.map(m => { const o = A.month.get(m); if (!o) return NaN; let t = 0; o.forEach(v => t += v.q); if (M) t = M.month.get(m) || 0; return t ? (o.get(x.b) ? o.get(x.b).q : 0) / t * 100 : NaN })) }));
+  const msIdx = months.map((m, k) => k + 1);
+  const blkTime = months.length > 1 ? `<div class="cd"><h3>Sản lượng theo tháng<span class="sp"></span><small>top 6 nhãn</small></h3><div class="sb">${bars}</div><div class="leg">${topB.map(b => `<span><i style="background:${bCol(b)}"></i>${esc(b)}</span>`).join('')}<span><i style="background:#33465f"></i>Khác</span></div></div>
+   <div class="cd"><h3>Diễn biến thị phần (%)</h3>${lineChart(ser, msIdx, v => vnN(v, 1) + '%', () => true).replace(/>(\d+)<\/text>/g, (s, k) => '>T' + (+months[+k - 1].slice(5)) + '</text>')}<div class="leg">${brands.slice(0, 5).map(x => `<span><i style="background:${bCol(x.b)}"></i>${esc(x.b)}</span>`).join('')}</div></div>` : '';
+  const sm = (mp, lab, n) => [...mp.entries()].map(([k, o]) => ({ k, q: o.q, u: o.u, sh: o.q / A.qty, asp: o.q ? o.u / o.q : 0, top: o.br ? E.topMap(o.br, 3).join(', ') : '' })).sort((a, b) => b.q - a.q).slice(0, n || 1e9);
+  const ccols = l => [{ t: l, v: r => r.k }, { t: 'Số lượng', n: 1, nf: 1, v: r => r.q, h: r => nf(r.q) }, { t: 'Share', n: 1, nf: 1, v: r => r.sh, h: r => E.fpc(r.sh) }, { t: 'Giá TB', n: 1, nf: 1, v: r => r.asp, h: r => uf(r.asp) }];
+  const blkCfg = `<div class="cd"><h3>Bậc CPU</h3>${xg('c', ccols('CPU'), sm(A.tier))}</div><div class="cd"><h3>VGA</h3>${xg('g', ccols('VGA'), sm(A.gpu, 'VGA', 12))}</div>`;
+  const blkImp = `<div class="cd"><h3>Nhà nhập khẩu</h3>${xg('i', ccols('Nhà nhập khẩu').concat([{ t: 'Giá trị', n: 1, nf: 1, v: r => r.u, h: r => E.fusd(r.u) }, { t: 'Nhãn nhập nhiều nhất', v: r => r.top }]), sm(A.imp))}</div>`;
+  const order = { list: [blkModel, blkBrand, blkCfg, blkTime, blkImp], importer: [blkImp, blkBrand, blkTime, blkModel, blkCfg], model: [blkModel, blkBrand, blkTime, blkCfg, blkImp], config: [blkCfg, blkModel, blkBrand, blkTime, blkImp], price: [blkCfg, blkBrand, blkModel, blkTime, blkImp], time: [blkTime, blkBrand, blkModel, blkCfg, blkImp] }[Q.focus] || [blkBrand, blkModel, blkTime, blkCfg, blkImp];
+  S.res.tabs = { brands, tiers: sm(A.tier), gpus: sm(A.gpu), imps: sm(A.imp) };
+  return h + `<div class="xbar"><button class="btn b2" data-a="fxl">⇪ Xuất Excel (Model, Nhãn hàng, CPU, VGA, Nhà nhập khẩu)</button></div>` + order.join('') }
+function resSales(Q, P, A) { const E = ENG, CF = !!(P.cf && (A.rP || A.qP)), hasG = !!(S.d.sales && S.d.sales.hasG);
+  if (!A.rows && !A.rev && !A.qty) return '<div class="empty">Không có số bán khớp các điều kiện trong kỳ này.</div>';
+  let h = `<div class="kp">${kpi('Doanh thu ròng', fVnd(A.rev), A.rev, CF ? A.rP : NaN, CF ? 'cùng kỳ' : '')}${kpi('Số lượng ròng', nf(A.qty), A.qty, CF ? A.qP : NaN, CF ? 'cùng kỳ' : '')}
+   ${hasG ? kpi('Lãi gộp', fVnd(A.gp), A.gp, CF ? A.gP : NaN, 'biên ' + fP(A.rev ? A.gp / A.rev : NaN, 1)) : kpi('Giá bán TB', A.qty ? fVnd(A.rev / A.qty) : '—', 0, NaN, 'mỗi chiếc')}${kpi('Đại lý có mua', nf(A.dl.size), A.dl.size, CF ? A.dlP.size : NaN, CF ? 'cùng kỳ' : '')}</div>`;
+  const rows = (mp, name, P0) => [...mp.entries()].map(([k, o]) => { const p = P0 && P0.get(k); return { k, nm: name ? name(k, o) : k, r: o.r, q: o.q, g: o.g, n: o.dl ? o.dl.size : 0, rP: p ? p.r : 0, o } }).sort((a, b) => b.r - a.r);
+  const scols = (l, extra) => [{ t: l, v: r => r.nm, h: r => `<b>${esc(r.nm)}</b>` }].concat(extra || [], [{ t: 'Doanh thu', n: 1, nf: 1, v: r => r.r, h: r => fVnd(r.r), sum: R => fVnd(R.reduce((s, r) => s + r.r, 0)) }, { t: 'Tỷ trọng', n: 1, nf: 1, v: r => A.rev ? r.r / A.rev : 0, h: r => fP(A.rev ? r.r / A.rev : NaN) }],
+    CF ? [{ t: 'Cùng kỳ', n: 1, nf: 1, v: r => r.rP ? r.r / r.rP : 1e9, h: r => fG(r.r, r.rP) }] : [], [{ t: 'Số lượng', n: 1, nf: 1, v: r => r.q, h: r => nf(r.q), sum: R => nf(R.reduce((s, r) => s + r.q, 0)) }], hasG ? [{ t: 'Biên', n: 1, nf: 1, v: r => r.r ? r.g / r.r : 0, h: r => fP(r.r ? r.g / r.r : NaN, 1) }] : []);
+  const DL = ENG.D.dl, SK = ENG.D.sku;
+  const dl = rows(A.dealer, k => (DL[k] || {}).name || k, A.dealerP), md = rows(A.model, k => k), ch = rows(A.chain), se = rows(A.sale), pv = rows(A.prov), br = rows(A.brand, null, A.brandP);
+  S.res.tabs = { dl, md, ch, se, pv, br };
+  const focus = Q.focus;
+  const blocks = [[`<div class="cd"><h3>Đại lý</h3>${xg('sd', scols('Đại lý', [{ t: 'Mã', v: r => r.k }]), dl)}</div>`, 'dealer'], [`<div class="cd"><h3>Mã hàng</h3>${xg('sm', scols('Mã hàng', [{ t: 'Mô tả', v: r => (SK[r.k] || {}).d || '' }]), md)}</div>`, 'model'],
+    [`<div class="cd"><h3>Sale</h3>${xg('ss', scols('Sale'), se)}</div>`, 'sale'], [`<div class="cd"><h3>Chuỗi</h3>${xg('sc', scols('Chuỗi'), ch)}</div>`, 'chain'], [`<div class="cd"><h3>Nhãn</h3>${xg('sb', scols('Nhãn'), br)}</div>`, 'brand'], [`<div class="cd"><h3>Tỉnh</h3>${xg('sp', scols('Tỉnh'), pv)}</div>`, 'prov']];
+  blocks.sort((a, b) => (b[1] == focus) - (a[1] == focus));
+  return h + `<div class="xbar"><button class="btn b2" data-a="fxl">⇪ Xuất Excel</button></div>` + blocks.map(x => x[0]).join('') }
+
+/* ---------- xuất Excel (SheetJS, chạy trên iPhone, không qua mạng) ---------- */
+function loadXlsx() { return window.XLSX ? Promise.resolve() : new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'xlsx.js?v=' + APPV; s.onload = ok; s.onerror = () => no(new Error('xlsx')); document.head.appendChild(s) }) }
+async function mkXlsx(retWb) { await loadXlsx(); const R = S.res, A = R.ask, Q = A.Q, P = A.P, wb = XLSX.utils.book_new(), r2 = x => Math.round(x * 100) / 100;
+  const add = (n, h, rows, w) => { const ws = XLSX.utils.aoa_to_sheet([h].concat(rows)); if (w) ws['!cols'] = w.map(x => ({ wch: x })); XLSX.utils.book_append_sheet(wb, ws, n) };
+  const gv = id => (GR[id] && GR[id].view) || [];
+  if (Q.src == 'imp') { const C = R.listCols || [], L = gv('m');
+    add('Model', C.map(c => c.t), L.map(r => C.map(c => c.k == 'yr' ? +r.f.slice(0, 4) : c.k == 'ym' ? +r.f.slice(5, 7) : c.k == 'q' ? r.q : c.k == 'u' ? r2(r.u) : c.k == 'avg' ? (r.q ? r2(r.u / r.q) : 0) : c.k == 'importer' ? (ENG.topMap(r.imp, 1)[0] || '') : (r.v[c.k] ?? ''))), C.map(c => c.k == 'sub' ? 28 : c.k == 'part' || c.k == 'cpum' ? 22 : 12));
+    add('Nhãn hàng', ['#', 'Nhãn hàng', 'Số lượng', 'Share', 'Cùng kỳ', 'Giá trị USD', 'Giá TB USD'], gv('b').map(r => [r.rk, r.b, r.q, r2(r.sh * 100) / 100, r.qP || '', r2(r.u), r2(r.asp)]), [5, 22, 12, 8, 12, 14, 10]);
+    for (const [id, n] of [['c', 'CPU'], ['g', 'VGA'], ['i', 'Nhà nhập khẩu']]) add(n, [n, 'Số lượng', 'Share', 'Giá TB USD'], gv(id).map(r => [r.k, r.q, r2(r.sh * 100) / 100, r2(r.asp)]), [26, 12, 8, 10]) }
+  else { for (const [id, n] of [['sd', 'Đại lý'], ['sm', 'Mã hàng'], ['ss', 'Sale'], ['sc', 'Chuỗi'], ['sb', 'Nhãn'], ['sp', 'Tỉnh']]) add(n, [n, 'Mã', 'Doanh thu (triệu đ)', 'Số lượng', 'Lãi gộp (triệu đ)'], gv(id).map(r => [r.nm, r.k, r2(r.r), r.q, r2(r.g)]), [30, 14, 16, 10, 16]) }
+  add('Điều kiện', ['Mục', 'Giá trị'], [['Câu tìm', R.text], ['Nguồn', Q.src == 'imp' ? 'Nhập khẩu' : 'Bán ra'], ['Nhóm hàng', ENG.catName(Q.cat) || ''], ['Kỳ', P.lab + ' (' + P.from + ' → ' + P.to + ')'], ['Số liệu đến ngày', P.end || ''], ['Gói dữ liệu', S.name]].concat(Object.entries(Q.f).map(([k, v]) => [k, Array.isArray(v) ? v.join(', ') : String(v)])), [20, 60]);
+  if (retWb) return wb;
+  const name = (Q.src == 'imp' ? 'Nhap khau ' : 'Ban ra ') + noMark(ENG.catName(Q.cat) || '').replace(/[^a-z0-9]+/gi, ' ').trim() + ' ' + P.from + ' den ' + P.to + '.xlsx';
+  const blob = new Blob([XLSX.write(wb, { bookType: 'xlsx', type: 'array' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), file = new File([blob], name, { type: blob.type });
+  try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return } } catch (e) { if (e && e.name == 'AbortError') return }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove() }, 4000) }
+function fperSheet() { const Q = S.res.ask.Q, P = S.res.ask.P, yrs = []; const d = Q.src == 'imp' ? ENG.IMPDET[Q.cat] : null; if (d) { for (const v of d.dict.ym) yrs.push(+String(v).slice(0, 4)) } else for (const x of ENG.R) yrs.push(x.y);
+  const Y = [...new Set(yrs)].filter(Boolean).sort((a, b) => b - a);
+  const O = [['ytd', 'Từ đầu năm (năm có số mới nhất)'], ['thisq', 'Quý này'], ['prevq', 'Quý trước'], ['l12', '12 tháng gần nhất'], ['all', 'Toàn bộ thời gian']].concat(Y.map(y => ['y' + y, 'Cả năm ' + y]));
+  openSheet('<h2>Đổi kỳ</h2>' + O.map(([k, l]) => `<button class="opt" data-a="fpm" data-v="${k}">${l}</button>`).join('')) }
 
 /* ---------- bảng trượt ---------- */
 function openSheet(html, full) { $('#sheet').innerHTML = `<div class="bg" data-a="close"></div><div class="sh ${full ? 'full' : ''}">${full ? '' : '<div class="grab"></div>'}${html}</div>`; document.body.style.overflow = 'hidden' }
@@ -392,7 +526,7 @@ async function unlock() { const pw = $('#pw').value, rem = $('#rem').checked, er
     if (rem) { await IDB.set('key', key); S.keyed = true } else { await IDB.del('key'); S.keyed = false }
     load(d); toast('✓ Đã mở gói') }
   catch (e) { er.textContent = e.message == 'bad-password' ? 'Sai mật khẩu' : 'Không mở được gói: ' + e.message; btn.disabled = false; btn.textContent = 'Mở' } }
-function load(d) { (d.imp || []).forEach(prepImp); if (d.sales) prepSales(d.sales); S.d = d; S.fx = null; if (!S.imp || !(d.imp || []).some(c => c.k == S.imp.cat)) S.imp = d.imp && d.imp.length ? impDefault(d.imp[0].k) : null;
+function load(d) { try { ENG.engLoad(d) } catch (e) { console.warn('engLoad', e) } (d.imp || []).forEach(prepImp); for (const C of d.imp || []) addTier(C); if (d.sales) prepSales(d.sales); S.res = null; for (const k in GR) delete GR[k]; S.d = d; S.fx = null; if (!S.imp || !(d.imp || []).some(c => c.k == S.imp.cat)) S.imp = d.imp && d.imp.length ? impDefault(d.imp[0].k) : null;
   S.cmp = d.imp && d.imp.length ? cmpDefault(S.imp.cat) : null; S.sl = d.sales ? slDefault() : null; render() }
 
 /* ---------- thao tác ---------- */
@@ -419,7 +553,19 @@ const ACT = {
   cpick: () => cmpPickSheet(),
   ctog: v => { const i = +v, B = S.cmp.brs, k = B.indexOf(i); if (k >= 0) { if (B.length <= 1) return toast('Giữ ít nhất 1 hãng'); B.splice(k, 1) } else { if (B.length >= 4) return toast('Tối đa 4 hãng'); B.push(i) } cmpPickSheet(); render(true) },
   cbrand: v => { const P = S.cmp; S.imp = { cat: P.cat, y: P.y, m0: P.m0, m1: P.m1, met: P.met, seg: -1 }; S.det = +v; brandSheet(+v) },
-  fsug: v => { S.q = v; render() },
+  fsug: v => { S.q = v; const i = $('#fq'); if (i) i.value = v; frun(v) },
+  frun: () => frun(),
+  fdrop: v => { const [k, x] = v.split('|'), Q = S.res.ask.Q; if (k == 'pmin' || k == 'pmax') delete Q.f[k]; else { Q.f[k] = (Q.f[k] || []).filter(y => String(y) != x); if (!Q.f[k].length) delete Q.f[k] } recompute() },
+  fcat: v => { const Q = S.res.ask.Q; Q.cat = v; Q.alt = []; recompute() },
+  fper: () => fperSheet(),
+  fpm: v => { const Q = S.res.ask.Q; Q.per = v == 'ytd' ? { rel: 'ytd' } : v == 'all' ? { rel: 'all' } : v == 'l12' ? { last: 12 } : v == 'thisq' || v == 'prevq' ? { rel: v } : { from: v.slice(1) + '-01', to: v.slice(1) + '-12' }; closeSheet(); recompute() },
+  fxl: async () => { try { await mkXlsx() } catch (e) { toast('Không xuất được Excel: ' + (e && e.message || e), 4000) } },
+  xsort: v => { const [id, i] = v.split(':'), g = GR[id]; g.sort = g.sort && g.sort[0] == +i ? (g.sort[1] < 0 ? [+i, 1] : null) : [+i, -1]; xgRe(id) },
+  xflt: v => { const [id, i] = v.split(':'); xgFltSheet(id, +i) },
+  xfall: v => { S.xf.sel = new Set(+v ? S.xf.all : []); document.querySelectorAll('#xfl input').forEach(x => x.checked = !!+v) },
+  xfok: () => { const { id, ci, sel, all } = S.xf, g = GR[id]; g.flt[ci] = sel.size == all.length ? null : new Set(sel); g.lim = 200; closeSheet(); xgRe(id) },
+  xclr: v => { GR[v].flt = {}; xgRe(v) },
+  xmore: v => { GR[v].lim += 400; xgRe(v) },
   qimp: v => { const [c, i, y, a, b] = v.split('|'); S.imp = { cat: c, y: +y, m0: +a, m1: +b, met: 'q', seg: -1 }; S.tab = 'imp'; render(); if (+i >= 0) { S.det = +i; brandSheet(+i) } },
   qsl: v => { const [e, y, a, b] = v.split('|'); Object.assign(S.sl, { y: +y, m0: +a, m1: +b }); S.tab = 'sales'; if (e) { const [k, i] = e.split(':'); if (k == 'br') { S.sl.br = +i; render() } else { render(); slEntSheet(k, +i) } } else render() },
   fimp: v => { const [c, k, i] = v.split('|'); S.imp = impDefault(c); S.tab = 'imp'; render(); const C = curC(); let b = +i;
@@ -432,6 +578,7 @@ document.addEventListener('keydown', e => { if (e.key == 'Enter' && e.target.id 
 
 /* ---------- khởi động ---------- */
 async function boot() {
+  try { S.hist = JSON.parse(localStorage.getItem('dgvm_hist') || '[]') } catch (e) { S.hist = [] }
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist() } catch (e) { }
   try { const p = await IDB.get('pkg'); if (p && p.u8) { S.pkg = p.u8; S.name = p.name || '' }
     const k = S.pkg && await IDB.get('key'); if (k) { try { S.keyed = true; load(await openWithKey(S.pkg, k)); return } catch (e) { await IDB.del('key'); S.keyed = false } } } catch (e) { console.warn(e) }
