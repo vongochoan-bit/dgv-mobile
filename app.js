@@ -2,7 +2,7 @@
    Số liệu chỉ đến từ gói .dgvp do nút "Phone Data" trên máy tính tạo (gửi qua Phone Link), mã hoá AES-256-GCM.
    App KHÔNG có kết nối mạng nào (CSP connect-src 'none'); gói lưu trên iPhone ở dạng còn mã hoá. */
 'use strict';
-const APPV = '116';
+const APPV = '116.1';
 const PHFMT = 1, PHITER = 600000;
 function phUnpack(u8) {
   const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), ml = dv.getUint32(0, true);
@@ -436,6 +436,10 @@ async function boot() {
   try { const p = await IDB.get('pkg'); if (p && p.u8) { S.pkg = p.u8; S.name = p.name || '' }
     const k = S.pkg && await IDB.get('key'); if (k) { try { S.keyed = true; load(await openWithKey(S.pkg, k)); return } catch (e) { await IDB.del('key'); S.keyed = false } } } catch (e) { console.warn(e) }
   render() }
-if ('serviceWorker' in navigator && location.protocol == 'https:' || location.hostname == 'localhost' || location.hostname == '127.0.0.1') {
-  try { navigator.serviceWorker.register('sw.js').catch(() => { }); let r = 0; navigator.serviceWorker.addEventListener('controllerchange', () => { if (r++ == 0 && S.d) toast('Đã cập nhật app – mở lại để dùng bản mới', 4000) }) } catch (e) { } }
+/* tự lên bản mới: hỏi bản mới mỗi lần mở / quay lại app; có bản mới → tải lại trang (số liệu + khoá ghi nhớ giữ nguyên) */
+if ('serviceWorker' in navigator && (location.protocol == 'https:' || location.hostname == 'localhost' || location.hostname == '127.0.0.1')) {
+  try { const had = !!navigator.serviceWorker.controller; let done = false;
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => { const up = () => { try { reg.update() } catch (e) { } }; up();
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState == 'visible') up() }) }).catch(() => { });
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (!had || done) return; done = true; if ($('#pw') && $('#pw').value) { toast('Đã có bản mới – mở lại app để dùng', 4000); return } location.reload() }) } catch (e) { } }
 boot();
