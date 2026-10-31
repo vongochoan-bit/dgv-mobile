@@ -2,7 +2,7 @@
    Số liệu chỉ đến từ gói .dgvp do nút "Phone Data" trên máy tính tạo (gửi qua Phone Link), mã hoá AES-256-GCM.
    App KHÔNG có kết nối mạng nào (CSP connect-src 'none'); gói lưu trên iPhone ở dạng còn mã hoá. */
 'use strict';
-const APPV = '115';
+const APPV = '115.1';
 const PHFMT = 1, PHITER = 600000;
 function phUnpack(u8) {
   const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength), ml = dv.getUint32(0, true);
@@ -43,10 +43,10 @@ const vnN = (v, d) => Number(v).toLocaleString('vi-VN', { minimumFractionDigits:
 const fQ = v => vnN(Math.round(v));
 const fU = v => { const a = Math.abs(v); return a >= 1e9 ? '$' + vnN(v / 1e9, 2) + ' tỷ' : a >= 1e6 ? '$' + vnN(v / 1e6, 1) + ' tr' : '$' + vnN(Math.round(v)) };
 const fV = (v, m) => m == 'u' ? fU(v) : fQ(v);
-const fP = (x, d) => isFinite(x) ? vnN(x * 100, d == null ? 1 : d) + '%' : '—';
+const fP = (x, d) => isFinite(x) ? vnN(x * 100, d == null ? (Math.abs(x) < .1 ? 2 : 1) : d) + '%' : '—';
 const fVnd = v => { const a = Math.abs(v); return a >= 1000 ? vnN(v / 1000, 2) + ' tỷ' : vnN(v, 1) + ' tr' };
 function fG(cur, prev) { if (!(prev > 0)) return cur > 0 ? '<span class="up">Mới</span>' : '—'; const g = cur / prev - 1; return `<span class="${g >= 0 ? 'up' : 'dn'}">${g >= 0 ? '▲' : '▼'}${vnN(Math.abs(g) * 100, Math.abs(g) < .1 ? 1 : 0)}%</span>` }
-function fPts(d) { if (!isFinite(d)) return ''; return `<span class="${d >= 0 ? 'up' : 'dn'}">${d >= 0 ? '▲' : '▼'}${vnN(Math.abs(d) * 100, 1)} điểm</span>` }
+function fPts(d) { if (!isFinite(d)) return ''; if (Math.abs(d) < .00005) return '<span style="color:var(--mute)">= cùng kỳ</span>'; return `<span class="${d >= 0 ? 'up' : 'dn'}">${d >= 0 ? '▲' : '▼'}${vnN(Math.abs(d) * 100, Math.abs(d) < .01 ? 2 : 1)} điểm</span>` }
 const fDate = s => { if (!s) return ''; const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : s };
 const fMade = s => { const t = new Date(s); if (isNaN(t)) return ''; const p = n => String(n).padStart(2, '0'); return p(t.getDate()) + '/' + p(t.getMonth() + 1) + ' ' + p(t.getHours()) + ':' + p(t.getMinutes()) };
 function toast(t, ms) { const e = $('#toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(() => e.style.display = 'none', ms || 2600) }
@@ -159,10 +159,10 @@ function pageImp() { const d = S.d; if (!d.imp || !d.imp.length) return shell('N
   h += `<div class="ins">${insight(C, P, a, b, rk, sh, sh0)}</div>`;
   h += `<div class="kp">
   <div class="k"><div class="l">Tổng thị trường</div><div class="v num">${fV(a.v, P.met)}</div><div class="d">${b ? fG(a.v, b.v) + ' cùng kỳ' : 'chưa có cùng kỳ'}</div></div>
-  <div class="k gb"><div class="l">GIGABYTE</div><div class="v num" style="color:var(--gb)">${fV(a.g, P.met)}</div><div class="d">${b ? fG(a.g, b.g) + ' cùng kỳ' : ''}</div></div>
-  <div class="k gb"><div class="l">Thị phần GIGABYTE</div><div class="v num">${fP(sh)}</div><div class="d">${rk ? 'Hạng ' + rk + ' ' : ''}${b ? fPts(sh - sh0) : ''}</div></div>
-  <div class="k"><div class="l">Giá nhập TB thị trường</div><div class="v num">${isFinite(asp) ? fU(asp) : '—'}</div><div class="d">${gq ? 'GIGABYTE ' + fU(gu / gq) : ''}${b && isFinite(asp0) ? ' · ' + fG(asp, asp0) : ''}</div></div></div>`;
-  h += trendCard(C, P, a, b, 'Theo tháng · ' + P.y);
+  <div class="k gb" data-a="gbdet"><div class="l">GIGABYTE ›</div><div class="v num" style="color:var(--gb)">${fV(a.g, P.met)}</div><div class="d">${b ? fG(a.g, b.g) + ' cùng kỳ' : ''}</div></div>
+  <div class="k gb" data-a="gbdet"><div class="l">Thị phần GIGABYTE</div><div class="v num">${fP(sh)}</div><div class="d">${rk ? 'Hạng ' + rk + ' ' : ''}${b ? fPts(sh - sh0) : ''}</div></div>
+  <div class="k"><div class="l">Giá nhập TB thị trường</div><div class="v num">${isFinite(asp) ? fU(asp) : '—'}</div><div class="d">${b && isFinite(asp0) ? fG(asp, asp0) + ' cùng kỳ' : ''}${gq ? (b && isFinite(asp0) ? ' · ' : '') + 'GIGABYTE ' + fU(gu / gq) : ''}</div></div></div>`;
+  h += trendCard(C, P, a, b, 'Theo tháng · ' + P.y, Array.from(a.mv, (v, m) => v ? a.mg[m] / v : NaN), 'Thị phần GIGABYTE');
   h += brandCard(C, P, a, b, 10);
   const ttl = { importer: 'Nhà nhập khẩu', segment: 'Phân khúc', band: 'Khoảng giá', sub: 'Dòng máy', gpu: 'GPU', cpum: 'CPU' };
   for (const k of ['importer', 'segment', 'band']) if (C.dims.includes(k) && !(k == 'segment' && P.seg >= 0)) h += barCard(C, P, a, k, ttl[k], 8);
@@ -174,17 +174,18 @@ function insight(C, P, a, b, rk, sh, sh0) { const L = [];
   if (b) { let best = null; for (const [i, v] of topL(C, a.by.brand, 'brand', 10)) { const v0 = b.by.brand[i]; if (v0 > 0 && v > v0 && (!best || v / v0 > best[1])) best = [i, v / v0] }
     if (best) L.push(`tăng mạnh nhất trong top 10: <b>${esc(C.dict.brand[best[0]])}</b> ▲${vnN((best[1] - 1) * 100)}%`) }
   return L.join(' · ') }
-function trendCard(C, P, a, b, title) { const ms = []; const mx = Math.max(C.maxM[P.y] || 12, P.m1); for (let m = 1; m <= mx; m++) ms.push(m);
+function trendCard(C, P, a, b, title, shr, shl) { const ms = []; const mx = Math.max(C.maxM[P.y] || 12, P.m1); for (let m = 1; m <= mx; m++) ms.push(m);
   let top_ = 0; for (const m of ms) top_ = Math.max(top_, a.mv[m], b ? b.mv[m] : 0); top_ = top_ || 1;
   const bars = ms.map(m => { const v = a.mv[m], g = a.mg[m], on = m >= P.m0 && m <= P.m1; return `<button data-a="month" data-v="${m}" class="${on ? 'on' : 'off'}"><div class="col" style="height:${Math.max(1.5, v / top_ * 100)}%"><i style="height:${v ? g / v * 100 : 0}%"></i></div><span>${m}</span></button>` }).join('');
-  return `<div class="cd"><h3>${title}<span class="sp"></span><small>chạm tháng để xem</small></h3><div class="trend">${bars}</div>
-  <div class="leg"><span><i style="background:#2b5a80"></i>Thị trường</span><span><i style="background:var(--gb)"></i>Phần GIGABYTE</span>${P.m0 != 1 || P.m1 != (C.maxM[P.y] || 12) ? '<span>· mờ = ngoài kỳ đang xem</span>' : ''}</div></div>` }
+  const sr = shr ? `<div class="shr">${ms.map(m => `<span class="${m >= P.m0 && m <= P.m1 ? '' : 'off'}">${isFinite(shr[m]) && a.mv[m] ? vnN(shr[m] * 100, shr[m] < .1 ? 1 : 0) : '–'}</span>`).join('')}</div>` : '';
+  return `<div class="cd"><h3>${title}<span class="sp"></span><small>chạm tháng để xem</small></h3><div class="trend">${bars}</div>${sr}
+  <div class="leg"><span><i style="background:#2b5a80"></i>${a.mg.some(x => x) ? 'Thị trường' : 'Số nhập'}</span>${a.mg.some(x => x) ? '<span><i style="background:var(--gb)"></i>Phần GIGABYTE</span>' : ''}${shr ? '<span style="color:var(--gb)">số vàng = ' + shl + ' (%)</span>' : ''}${P.m0 != 1 || P.m1 != (C.maxM[P.y] || 12) ? '<span>· mờ = ngoài kỳ đang xem</span>' : ''}</div></div>` }
 function brandCard(C, P, a, b, n) { const L = topL(C, a.by.brand, 'brand'), mx = L.length ? L[0][1] : 1;
   const row = ([i, v], r) => { const nm = C.dict.brand[i], col = bCol(nm), v0 = b ? b.by.brand[i] : 0;
     return `<button class="br ${C.gb[i] ? 'me' : ''}" data-a="brand" data-v="${i}"><span class="rk">${r + 1}</span><span class="nm"><b><i class="dot" style="background:${col}"></i>${esc(nm || '(trống)')}</b><div class="bar"><i style="width:${v / mx * 100}%;background:${col}"></i></div></span><span class="rv num">${fV(v, P.met)}<small>${fP(v / a.v)}${b ? ' · ' + fG(v, v0) : ''}</small></span></button>` };
-  return `<div class="cd" id="brands"><h3>Nhãn hàng<span class="sp"></span><small>${L.length} hãng</small></h3>${L.slice(0, n).map(row).join('')}${L.length > n ? `<button class="more" data-a="allbrands">Xem cả ${L.length} hãng ›</button>` : ''}</div>` }
+  return `<div class="cd" id="brands"><h3>Nhãn hàng<span class="sp"></span><small>${L.length} hãng</small></h3>${L.slice(0, n).map(row).join('')}${L.length > n ? L.map((x, r) => [x, r]).filter(([x, r]) => r >= n && C.gb[x[0]]).map(([x, r]) => '<div class="gap">⋯</div>' + row(x, r)).join('') : ''}${L.length > n ? `<button class="more" data-a="allbrands">Xem cả ${L.length} hãng ›</button>` : ''}</div>` }
 function barCard(C, P, a, k, title, n, accent) { const L = topL(C, a.by[k], k), tot = a.v || 1; if (!L.length) return ''; const mx = L[0][1];
-  return `<div class="cd"><h3>${title}<span class="sp"></span><small>${L.length}</small></h3>${L.slice(0, n).map(([i, v]) => `<div class="hb"><span class="n">${esc(C.dict[k][i])}</span><span class="t"><i style="width:${v / mx * 100}%;${accent ? 'background:' + accent : ''}"></i></span><span class="x num">${fP(v / tot, 0)}</span></div>`).join('')}</div>` }
+  return `<div class="cd"><h3>${title}<span class="sp"></span><small>${L.length}</small></h3>${L.slice(0, n).map(([i, v]) => `<div class="hb"><span class="n">${esc(C.dict[k][i])}</span><span class="t"><i style="width:${v / mx * 100}%;${accent ? 'background:' + accent : ''}"></i></span><span class="x num">${fP(v / tot, v / tot < .1 ? 1 : 0)}</span></div>`).join('')}</div>` }
 
 /* chi tiết một hãng (toàn màn hình) */
 function brandSheet(i) { const C = curC(), P = S.imp, nm = C.dict.brand[i], col = bCol(nm), f = Object.assign({}, P, { br: i });
@@ -197,7 +198,7 @@ function brandSheet(i) { const C = curC(), P = S.imp, nm = C.dict.brand[i], col 
   <div class="k"><div class="l">Thị phần · hạng</div><div class="v num">${fP(sh)}</div><div class="d">Hạng ${rk}/${L.length} ${b ? fPts(sh - sh0) : ''}</div></div>
   <div class="k"><div class="l">Giá nhập TB</div><div class="v num">${isFinite(asp) ? fU(asp) : '—'}</div><div class="d">thị trường ${isFinite(mAsp) ? fU(mAsp) : '—'}</div></div>
   <div class="k"><div class="l">${P.met == 'u' ? 'Số lượng' : 'Giá trị'}</div><div class="v num">${P.met == 'u' ? fQ(a.q) : fU(a.u)}</div><div class="d">${b ? fG(P.met == 'u' ? a.q : a.u, P.met == 'u' ? b.q : b.u) + ' cùng kỳ' : ''}</div></div></div>`;
-  h += trendCard(C, P, a2, b, 'Theo tháng · ' + P.y).replace('<span><i style="background:var(--gb)"></i>Phần GIGABYTE</span>', '');
+  h += trendCard(C, P, a2, b, 'Theo tháng · ' + P.y, Array.from(a.mv, (v, m) => all.mv[m] ? v / all.mv[m] : NaN), 'thị phần ' + esc(nm));
   const ttl = { sub: 'Dòng máy', segment: 'Phân khúc', importer: 'Nhà nhập khẩu', band: 'Khoảng giá', cpum: 'CPU', gpu: 'GPU' };
   for (const k of ['sub', 'segment', 'importer', 'band', 'cpum', 'gpu']) if (C.dims.includes(k) && !(k == 'segment' && P.seg >= 0)) h += barCard(C, P, a, k, ttl[k], 8, col);
   openSheet(h, true) }
@@ -254,6 +255,7 @@ const ACT = {
   ps: v => { S.imp.seg = +v; closeSheet(); render(true) },
   month: v => { const m = +v; if (S.imp.m0 == m && S.imp.m1 == m) { S.imp.m0 = 1; S.imp.m1 = curC().maxM[S.imp.y] || 12 } else { S.imp.m0 = S.imp.m1 = m } if ($('#sheet').innerHTML && S.det != null) { brandSheet(S.det); render(true); return } render(true) },
   brand: v => { S.det = +v; brandSheet(+v) },
+  gbdet: () => { const C = curC(), L = topL(C, agg(C, S.imp).by.brand, 'brand').filter(([i]) => C.gb[i]); if (!L.length) { toast('GIGABYTE chưa có số trong kỳ này'); return } S.det = L[0][0]; brandSheet(L[0][0]) },
   allbrands: () => allBrandsSheet(),
   close: () => { S.det = null; closeSheet() },
   lock: async () => { await IDB.del('key'); S.keyed = false; S.d = null; render(); toast('Đã khoá – lần sau nhập lại mật khẩu') },
